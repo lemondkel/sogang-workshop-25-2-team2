@@ -21,7 +21,6 @@ public class GameManager : MonoBehaviour
     [Tooltip("이벤트에 사용될, 하이어라키에서 참조할 게임 오브젝트들을 등록합니다. (순서대로 실행)")]
     public GameObject[] eventObjects;
 
-    // AudioSource를 2개로 분리
     [Header("오디오 소스 (인스펙터에서 할당)")]
     [Tooltip("배경음악(BGM)을 재생할 AudioSource")]
     public AudioSource bgmSource;
@@ -35,17 +34,12 @@ public class GameManager : MonoBehaviour
     private bool isTimerRunning = false;
     private int currentEventIndex = 0;
     private bool wasDoorOpen = false;
-    private bool isEventActive = false;
-    private bool canAdvanceIndex = false;
+    private bool isLetterActive = false; // 노크(이벤트) 발생 후, 플레이어가 해결해야 할 상태
+    private bool canAdvanceIndex = false; // 인덱스 증가 자격이 있는지 확인
 
 
     void Start()
     {
-        // GetComponent 대신 인스펙터에서 할당받은 컴포넌트를 사용
-        // audioSource = GetComponent<AudioSource>();
-        // audioSource.playOnAwake = false;
-
-        // sfxSource는 playOnAwake를 꺼두는 것을 보장합니다.
         if (sfxSource != null)
         {
             sfxSource.playOnAwake = false;
@@ -73,19 +67,23 @@ public class GameManager : MonoBehaviour
     /// </summary>
     private void OnDoorOpened()
     {
-        // 1. 이벤트 해결 자격이 있는지 검사합니다.
-        if (isEventActive && canAdvanceIndex)
+        // 1. 이벤트 해결 자격이 있는지 검사
+        if (canAdvanceIndex)
         {
             Debug.Log("[GameManager] 문이 열렸습니다. 이벤트를 '해결'했습니다. 인덱스 증가!");
 
-            // 문이 열렸으므로, '노크' 효과음을 즉시 멈춥니다.
             if (sfxSource != null && sfxSource.isPlaying)
             {
                 sfxSource.Stop();
                 Debug.Log("[GameManager] 문을 열었으므로 노크 사운드를 중지합니다.");
             }
 
-            // 다음 이벤트를 위해 인덱스를 증가시킵니다.
+            if (currentEventIndex == 0)
+            {
+                isLetterActive = true;
+                Debug.Log("[GameManager] 쪽지 이벤트 설정.");
+            }
+
             currentEventIndex++;
             if (currentEventIndex >= eventObjects.Length)
             {
@@ -94,10 +92,8 @@ public class GameManager : MonoBehaviour
             }
             Debug.Log($"[GameManager] 다음 이벤트 인덱스는 {currentEventIndex} 입니다.");
 
-            // 상태 플래그를 리셋합니다.
-            isEventActive = false; // 이벤트 해결 완료
-            canAdvanceIndex = false; // 다음 이벤트까지 인덱스 증가 금지
-            isTimerRunning = false; // 타이머 플래그 리셋 (Update()에서 새 타이머 시작)
+            canAdvanceIndex = false;
+            isTimerRunning = false;
         }
         else
         {
@@ -150,19 +146,22 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public void ToggleDoor()
     {
-        if (doorTarget != null)
+        if (doorTarget == null) return;
+
+        // 🚨이벤트가 활성화된 상태라면 문 상호작용을 차단합니다.
+        if (isLetterActive && doorTarget != null && doorTarget.open)
         {
-            // OpenDoor() 함수는 문이 닫혀있으면 열고, 열려있으면 닫는 토글 기능을 수행한다고 가정합니다.
-            // Door 스크립트에 따라 다를 수 있지만, 일반적으로 토글 기능을 담당합니다.
-            // 문을 여는 로직과 닫는 로직이 모두 포함되어야 합니다.
-            doorTarget.OpenDoor(); // Door 스크립트의 토글 기능을 호출
-            Debug.Log($"[GameManager] Door Toggle: {doorTarget.name} - Current State: {(doorTarget.open ? "Open" : "Closed")}.");
+            Debug.LogWarning($"[GameManager] 문 잠김! 현재 이벤트({currentEventIndex})가 활성화되어 해결 전까지 문을 조작할 수 없습니다.");
+            return; // 문 여닫기 로직을 실행하지 않고 종료
         }
+
+        // isLetterActive가 false일 때만 정상적으로 문을 여닫습니다.
+        doorTarget.OpenDoor();
+        Debug.Log($"[GameManager] Door Toggle: {doorTarget.name} - Current State: {(doorTarget.open ? "Open" : "Closed")}.");
     }
 
     /// <summary>
     /// 랜덤 이벤트가 발생했을 때 호출되는 핵심 함수.
-    /// isEventActive 플래그를 켜서 해결 대기 상태로 만듭니다.
     /// </summary>
     public void TriggerRandomEvent()
     {
@@ -173,14 +172,33 @@ public class GameManager : MonoBehaviour
             isTimerRunning = false;
             return;
         }
-
-        // 이벤트가 '활성화'되었음을 표시
-        isEventActive = true;
-        // 사운드가 재생되었으므로, 이제 플레이어가 문을 열면 인덱스 증가 '자격'을 줍니다.
         canAdvanceIndex = true;
 
         PlayRandomSound();
         StartCoroutine(TimedObjectEvent());
+
+        Debug.Log($"[GameManager] Custom Logic: 인덱스 {currentEventIndex}에 대한 즉각적인 로직을 실행합니다.");
+        switch (currentEventIndex)
+        {
+            case 0:
+                // 일반적인 흐름 유지
+                Debug.Log("Custom Logic: 0번 이벤트 - 특별한 조치 없이 일반적인 흐름 유지.");
+                break;
+
+            case 1:
+                // return을 사용하여 다음 이벤트 타이머 시작을 막음 (해결만 대기)
+                Debug.Log("Custom Logic: 1번 이벤트 - 강제 return;을 사용하여 다음 이벤트 타이머 시작을 막고, 플레이어의 문 열기 해결만 대기합니다.");
+                return;
+
+            case 2:
+                // 인덱스 2일 때 return을 사용하여 다음 이벤트 타이머 시작을 막습니다.
+                Debug.Log("Custom Logic: 2번 이벤트 - 문 닫기 (다음 타이머 시작)를 막고 플레이어의 해결만 대기합니다.");
+                return;
+
+            default:
+                Debug.Log($"Custom Logic: {currentEventIndex}번 이벤트 - 별도의 커스텀 액션 없음.");
+                break;
+        }
 
         Debug.Log($"[GameManager] 순차 이벤트 발생! (인덱스: {currentEventIndex}) -> 해결 대기 상태로 전환됨.");
     }
@@ -202,26 +220,26 @@ public class GameManager : MonoBehaviour
 
     /// <summary>
     /// 문이 닫히는 '순간' 호출되는 함수.
-    /// isEventActive 상태에 따라 특정 행동(로직)을 요구하는 코드를 구현할 수 있습니다.
     /// </summary>
     private void OnDoorClosed()
     {
         Debug.Log($"[GameManager] 문이 닫혔습니다. (다음 이벤트 인덱스: {currentEventIndex})");
 
-        // 요청하신 '특정 인덱스에 특정 행동 조건'이 필요할 경우 여기에 구현
-        if (isEventActive) // 이벤트가 활성화된 상태라면, 특정 행동을 검사할 수 있습니다.
+        if (isLetterActive)
         {
             switch (currentEventIndex)
             {
                 case 0:
-                    // 문을 여닫는 행위 외의 다른 행동 조건이 필요하다면 여기에 추가
-                    Debug.Log("문 닫힘: 0번 이벤트 대기 중...");
+                    Debug.Log("문 닫힘 로직: 0번 이벤트 - 문 닫힘 상태 유지 확인.");
                     break;
                 case 1:
-                    Debug.Log("문 닫힘: 1번 이벤트 대기 중...");
+                    Debug.Log("문 닫힘 로직: 1번 이벤트 - 문 닫힘 상태에 따른 추가 연출 대기.");
+                    break;
+                case 2:
+                    Debug.Log("문 닫힘 로직: 2번 이벤트 - 문 닫힘 상태에 따른 추가 연출 대기.");
                     break;
                 default:
-                    Debug.Log($"문 닫힘: {currentEventIndex}번 이벤트 대기 중...");
+                    Debug.Log($"문 닫힘 로직: {currentEventIndex}번 이벤트 - 기본 로직.");
                     break;
             }
         }
@@ -306,10 +324,10 @@ public class GameManager : MonoBehaviour
 
         Debug.Log($"[GameManager] 다음 이벤트(인덱스: {currentEventIndex})까지 {randomDelay:F2}초 대기 시작...");
 
-        // [핵심] randomDelay 시간만큼 대기하되, 1프레임마다 문 상태를 검사
+        // randomDelay 시간만큼 대기하되, 1프레임마다 문 상태를 검사
         while (timer < randomDelay)
         {
-            // 1. [중요] 대기 중에 문이 열렸는지 확인
+            // 1. 대기 중에 문이 열렸는지 확인
             if (doorTarget != null && doorTarget.open)
             {
                 Debug.Log("[GameManager] 문이 열려서 이벤트 타이머를 중단/리셋합니다.");
