@@ -98,7 +98,7 @@ public class GameManager : MonoBehaviour
         else
         {
             // 문은 열 수 있지만, 인덱스는 증가하지 않습니다.
-            Debug.LogWarning($"[GameManager] 문이 열렸으나, 인덱스 증가 조건({isEventActive} & {canAdvanceIndex})을 충족하지 못했습니다. 인덱스({currentEventIndex})는 유지됩니다.");
+            Debug.LogWarning($"[GameManager] 문이 열렸으나, 인덱스 증가 조건({canAdvanceIndex})을 충족하지 못했습니다. 인덱스({currentEventIndex})는 유지됩니다.");
         }
     }
 
@@ -134,7 +134,7 @@ public class GameManager : MonoBehaviour
 
         // 4. 이벤트 타이머 제어
         // 문이 닫혀있고, 이벤트가 활성화되지 않은 (해결된) 상태에서만 타이머 시작
-        if (!isDoorCurrentlyOpen && !isTimerRunning && !isEventActive)
+        if (!isDoorCurrentlyOpen && !isTimerRunning && !isLetterActive)
         {
             StartCoroutine(RandomEventTimerRoutine());
         }
@@ -258,7 +258,7 @@ public class GameManager : MonoBehaviour
         {
             Debug.LogWarning("[GameManager] 이벤트 오브젝트가 없습니다. 비주얼 이벤트를 건너뛰고 타이머를 리셋합니다.");
             isTimerRunning = false;
-            isEventActive = false; // 이벤트가 없으므로 활성 상태도 리셋
+            isLetterActive = false; // 이벤트가 없으므로 활성 상태도 리셋
             yield break;
         }
 
