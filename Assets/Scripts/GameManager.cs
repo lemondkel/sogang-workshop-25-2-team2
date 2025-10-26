@@ -19,7 +19,6 @@ public class GameManager : MonoBehaviour
     [Header("쪽지 다이얼로그 UI 리스트 (클릭 후 뜨는 화면)")]
     public GameObject[] letterObjects;
 
-    // 문 열림으로 쪽지 UI/물리 오브젝트를 띄워야 하는 이벤트 인덱스
     [Header("문 열림으로 쪽지를 띄울 이벤트 인덱스")]
     public int[] letterEventIndices = { 0, 2, 3, 6 };
 
@@ -59,11 +58,7 @@ public class GameManager : MonoBehaviour
         {
             wasDoorOpen = doorTarget.open;
         }
-
-        // 🚨 [제거] EventObjectClickHandler, LetterClickHandler 관련 컴포넌트 추가 로직 제거
     }
-    // GameManager.cs 내 OnDoorOpened 함수 전체를 이 코드로 교체하세요.
-    // GameManager.cs 내 OnDoorOpened 함수 전체를 이 코드로 교체하세요.
 
     /// <summary>
     /// 문이 열리는 '순간' 호출되는 함수.
@@ -84,7 +79,7 @@ public class GameManager : MonoBehaviour
 
             if (isLetterEvent)
             {
-                // 🚨 [핵심 수정] 물리 오브젝트만 활성화하고 UI는 켜지 않습니다.
+                // 물리 오브젝트만 활성화하고 UI는 켜지 않습니다.
                 bool success = ShowEventObjectOnly(); // 물리 오브젝트 활성화 시도
 
                 if (success)
@@ -112,7 +107,6 @@ public class GameManager : MonoBehaviour
                 Debug.Log($"[GameManager] 다음 이벤트 인덱스는 {currentEventIndex} 입니다.");
                 isAwaitingSolution = false;
             }
-
             canAdvanceIndex = false; // 인덱스 증가 자격 초기화
             isTimerRunning = false;  // 다음 타이머 대기 시작
         }
@@ -123,7 +117,7 @@ public class GameManager : MonoBehaviour
     }
     void Update()
     {
-        // ... (Escape 버튼, 문 닫힘/열림 순간 감지 로직 유지)
+        // Escape 버튼, 문 닫힘/열림 순간 감지 로직 유지
         if (Input.GetKeyDown(KeyCode.Escape))
         {
             Debug.Log("[GameManager] Android Back Button Pressed. Quitting application.");
@@ -153,10 +147,6 @@ public class GameManager : MonoBehaviour
             StartCoroutine(RandomEventTimerRoutine());
         }
     }
-    // GameManager.cs 내 ToggleDoor 함수 전체를 이 코드로 교체하세요.
-
-
-    // GameManager.cs에 다음 함수들을 추가하세요.
 
     /// <summary>
     /// 문 열림 시 현재 인덱스에 맞는 물리 오브젝트만 활성화합니다.
@@ -169,19 +159,16 @@ public class GameManager : MonoBehaviour
             eventObjects[currentEventIndex].SetActive(true);
             return true;
         }
-
         Debug.LogError($"[GameManager] Event Object 활성화 실패! 인덱스: {currentEventIndex}가 NULL이거나 배열 범위 오류.");
         return false;
     }
-
-    // GameManager.cs 내 ShowLetterUIOnly 함수 전체를 이 코드로 교체하세요.
 
     /// <summary>
     /// 문 닫기 시도 시, 쪽지 UI (다이얼로그)만 활성화합니다.
     /// </summary>
     private void ShowLetterUIOnly()
     {
-        // 🚨 [핵심 로직] letterEventIndices 배열에서 현재 currentEventIndex의 '위치(Key)'를 찾습니다.
+        // [핵심 로직] letterEventIndices 배열에서 현재 currentEventIndex의 '위치(Key)'를 찾습니다.
         int mappedIndex = System.Array.IndexOf(letterEventIndices, currentEventIndex);
 
         // 1. 매핑 인덱스가 유효한지 확인 (0, 1, 2, 3 중 하나여야 함)
@@ -195,7 +182,7 @@ public class GameManager : MonoBehaviour
         }
         else
         {
-            // Debug.LogWarning이 아닌, 오류 발생 시 명확한 로그 출력
+            // Debug.Log 아닌, 오류 발생 시 명확한 로그 출력
             Debug.LogError($"[GameManager] Letter UI 활성화 실패! Event Index {currentEventIndex}에 대한 Mapped Index {mappedIndex}가 NULL이거나 배열 범위({letterObjects.Length}) 오류입니다. 강제 해결 처리.");
             HandleLetterEventSolved();
         }
@@ -214,14 +201,14 @@ public class GameManager : MonoBehaviour
         {
             if (!isLetterUIDisplayed)
             {
-                // 🚨 1단계 문 닫기 시도: UI가 꺼져 있다면 -> 문 닫기를 막고 UI를 켠다.
+                // 1단계 문 닫기 시도: UI가 꺼져 있다면 -> 문 닫기를 막고 UI를 켠다.
                 ShowLetterUIOnly();
                 Debug.Log("[GameManager] 문 닫기 차단! UI 다이얼로그 활성화.");
                 return; // 문 닫는 동작을 하지 않고 종료
             }
             else
             {
-                // 🚨 2단계 문 닫기 시도: UI가 켜져 있다면 -> 문 닫기를 허용하고 UI를 닫으며 최종 해결한다.
+                // 2단계 문 닫기 시도: UI가 켜져 있다면 -> 문 닫기를 허용하고 UI를 닫으며 최종 해결한다.
                 HandleLetterEventSolved();
                 // isAwaitingSolution이 false가 되었으므로 문 닫기 허용 (다음 문장 doorTarget.OpenDoor() 실행)
                 Debug.Log("[GameManager] UI 닫고 이벤트 해결 완료. 문 닫기 허용.");
@@ -240,7 +227,7 @@ public class GameManager : MonoBehaviour
     /// <summary>
     /// 문 열림 시 현재 인덱스에 맞는 쪽지 UI와 물리 오브젝트를 활성화합니다.
     /// </summary>
-    private bool ShowLetterAndObject() // 🚨 bool 반환형으로 수정
+    private bool ShowLetterAndObject()
     {
         bool success = true;
 
@@ -260,13 +247,11 @@ public class GameManager : MonoBehaviour
         {
             Debug.LogError($"[GameManager] Letter UI 활성화 실패! 인덱스: {currentEventIndex}. LetterObjects[{(currentEventIndex < letterObjects.Length ? currentEventIndex : "N/A")}] 참조가 NULL이거나 배열 범위 오류.");
             isLetterUIDisplayed = false;
-            success = false; // 🚨 실패 플래그 설정
+            success = false;
         }
 
         return success;
     }
-    // GameManager.cs 내 HandleLetterEventSolved 함수 전체를 이 코드로 교체하세요.
-    // GameManager.cs 내 HandleLetterEventSolved 함수 시작 부분만 이 코드로 교체하세요.
 
     /// <summary>
     /// 쪽지 이벤트를 최종적으로 해결하고 문 잠금을 해제합니다. (문 클릭 시 호출됨)
@@ -275,7 +260,7 @@ public class GameManager : MonoBehaviour
     {
         Debug.Log($"[GameManager] 문 클릭으로 쪽지 이벤트 해결 완료. 인덱스 {currentEventIndex} 처리 시작.");
 
-        // 🚨 [핵심 추가] 비활성화할 때 사용할 매핑 인덱스 계산
+        // 비활성화할 때 사용할 매핑 인덱스 계산
         int mappedIndex = System.Array.IndexOf(letterEventIndices, currentEventIndex);
 
         // 1. 활성화된 모든 오브젝트 비활성화 (물리 오브젝트 + UI 다이얼로그)
@@ -287,7 +272,7 @@ public class GameManager : MonoBehaviour
             Debug.Log($"[GameManager DEBUG] eventObjects[{currentEventIndex}] 비활성화 완료.");
         }
 
-        // 🚨 [핵심 수정] letterObjects 비활성화 (매핑된 인덱스 사용)
+        // letterObjects 비활성화 (매핑된 인덱스 사용)
         if (mappedIndex >= 0 && mappedIndex < letterObjects.Length && letterObjects[mappedIndex] != null)
         {
             letterObjects[mappedIndex].SetActive(false);
@@ -318,7 +303,7 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public void TriggerRandomEvent()
     {
-        // ... (문 열림 검사, canAdvanceIndex=true 설정, 사운드 재생 유지)
+        // 문 열림 검사, canAdvanceIndex=true 설정, 사운드 재생 유지
         if (doorTarget != null && doorTarget.open)
         {
             Debug.LogWarning("[GameManager] 이벤트 발동 순간 문이 열려있어 건너킵니다. 타이머가 리셋됩니다.");
@@ -381,7 +366,7 @@ public class GameManager : MonoBehaviour
             yield break;
         }
 
-        // 🚨 [수정] 쪽지 이벤트가 아닌 경우에만 물리 오브젝트를 활성화
+        // 쪽지 이벤트가 아닌 경우에만 물리 오브젝트를 활성화
         if (!letterEventIndices.Contains(currentEventIndex))
         {
             GameObject sequentialObj = eventObjects[currentEventIndex];
