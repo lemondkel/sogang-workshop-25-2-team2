@@ -92,7 +92,7 @@ public class GameManager : MonoBehaviour
                     // 로딩 실패: 이벤트 건너뛰기
                     isAwaitingSolution = false;
                     currentEventIndex++;
-                    if (currentEventIndex >= eventObjects.Length) currentEventIndex = 0;
+                    HandleGameEndCheck();
                     Debug.Log($"[GameManager] 오브젝트 로딩 실패! 이벤트를 건너뛰고 다음 인덱스({currentEventIndex})로 진행합니다.");
                 }
             }
@@ -100,10 +100,8 @@ public class GameManager : MonoBehaviour
             {
                 // 일반적인 이벤트 해결: 다음 인덱스로 진행
                 currentEventIndex++;
-                if (currentEventIndex >= eventObjects.Length)
-                {
-                    currentEventIndex = 0;
-                }
+                HandleGameEndCheck();
+
                 Debug.Log($"[GameManager] 다음 이벤트 인덱스는 {currentEventIndex} 입니다.");
                 isAwaitingSolution = false;
             }
@@ -115,9 +113,39 @@ public class GameManager : MonoBehaviour
             Debug.LogWarning($"[GameManager] 문이 열렸으나, 인덱스 증가 조건({canAdvanceIndex})을 충족하지 못했습니다. 인덱스({currentEventIndex})는 유지됩니다.");
         }
     }
+
+    // 게임 종료/리셋 체크
+    private void HandleGameEndCheck()
+    {
+        if (eventObjects.Length > 0 && currentEventIndex >= eventObjects.Length)
+        {
+            Debug.Log("[GameManager] 모든 이벤트를 완료했습니다. 게임 상태를 초기화합니다. 💥");
+            ResetToStart();
+        }
+        // 인덱스가 배열 크기를 넘지 않는다면, 그대로 currentEventIndex 유지
+    }
+
+    // 게임 초기화 (Start()와 유사한 역할)
+    private void ResetToStart()
+    {
+        currentEventIndex = 0;
+        isTimerRunning = false;
+        isAwaitingSolution = false;
+        isLetterUIDisplayed = false;
+        canAdvanceIndex = false;
+
+        // 문이 열려있다면 닫아줍니다. (새로운 플레이를 위해)
+        if (doorTarget != null && doorTarget.open)
+        {
+            doorTarget.OpenDoor();
+            wasDoorOpen = false;
+        }
+
+        HideAllObjects();
+    }
+
     void Update()
     {
-        // Escape 버튼, 문 닫힘/열림 순간 감지 로직 유지
         if (Input.GetKeyDown(KeyCode.Escape))
         {
             Debug.Log("[GameManager] Android Back Button Pressed. Quitting application.");
@@ -129,7 +157,6 @@ public class GameManager : MonoBehaviour
 
         bool isDoorCurrentlyOpen = (doorTarget != null && doorTarget.open);
 
-        // 문 닫힘/열림 '순간' 감지
         if (wasDoorOpen && !isDoorCurrentlyOpen)
         {
             OnDoorClosed();
@@ -140,8 +167,6 @@ public class GameManager : MonoBehaviour
         }
         wasDoorOpen = isDoorCurrentlyOpen;
 
-        // 이벤트 타이머 제어
-        // isAwaitingSolution 상태가 아닐 때만 타이머 시작
         if (!isDoorCurrentlyOpen && !isTimerRunning && !isAwaitingSolution)
         {
             StartCoroutine(RandomEventTimerRoutine());
@@ -149,11 +174,36 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
+    /// 문 클릭으로 모든 상호작용을 처리합니다.
+    /// </summary>
+    public void ToggleDoor()
+    {
+        if (doorTarget == null) return;
+
+        if (isAwaitingSolution && doorTarget.open)
+        {
+            if (!isLetterUIDisplayed)
+            {
+                ShowLetterUIOnly();
+                Debug.Log("[GameManager] 문 닫기 차단! UI 다이얼로그 활성화.");
+                return;
+            }
+            else
+            {
+                HandleLetterEventSolved();
+                Debug.Log("[GameManager] UI 닫고 이벤트 해결 완료. 문 닫기 허용.");
+            }
+        }
+
+        doorTarget.OpenDoor();
+        Debug.Log($"[GameManager] Door Toggle: {doorTarget.name} - Current State: {(doorTarget.open ? "Open" : "Closed")}.");
+    }
+
+    /// <summary>
     /// 문 열림 시 현재 인덱스에 맞는 물리 오브젝트만 활성화합니다.
     /// </summary>
     private bool ShowEventObjectOnly()
     {
-        // 물리 오브젝트 활성화
         if (currentEventIndex >= 0 && currentEventIndex < eventObjects.Length && eventObjects[currentEventIndex] != null)
         {
             eventObjects[currentEventIndex].SetActive(true);
@@ -186,71 +236,6 @@ public class GameManager : MonoBehaviour
             Debug.LogError($"[GameManager] Letter UI 활성화 실패! Event Index {currentEventIndex}에 대한 Mapped Index {mappedIndex}가 NULL이거나 배열 범위({letterObjects.Length}) 오류입니다. 강제 해결 처리.");
             HandleLetterEventSolved();
         }
-    }
-
-    /// <summary>
-    /// UI 버튼 등 외부에서 문을 열거나 닫기 위해 사용하는 함수.
-    /// 문 클릭으로 모든 상호작용을 처리합니다.
-    /// </summary>
-    public void ToggleDoor()
-    {
-        if (doorTarget == null) return;
-
-        // 1. 문이 열려 있고, 현재 해결 대기 상태라면 (물리 오브젝트/UI가 켜져 있다면)
-        if (isAwaitingSolution && doorTarget.open)
-        {
-            if (!isLetterUIDisplayed)
-            {
-                // 1단계 문 닫기 시도: UI가 꺼져 있다면 -> 문 닫기를 막고 UI를 켠다.
-                ShowLetterUIOnly();
-                Debug.Log("[GameManager] 문 닫기 차단! UI 다이얼로그 활성화.");
-                return; // 문 닫는 동작을 하지 않고 종료
-            }
-            else
-            {
-                // 2단계 문 닫기 시도: UI가 켜져 있다면 -> 문 닫기를 허용하고 UI를 닫으며 최종 해결한다.
-                HandleLetterEventSolved();
-                // isAwaitingSolution이 false가 되었으므로 문 닫기 허용 (다음 문장 doorTarget.OpenDoor() 실행)
-                Debug.Log("[GameManager] UI 닫고 이벤트 해결 완료. 문 닫기 허용.");
-            }
-        }
-
-        // 2. 문이 닫혀있고, isAwaitingSolution이 false라면 (일반적인 문 열기)
-        // 3. 문이 열려있고, isAwaitingSolution이 false라면 (일반적인 문 닫기)
-        // 이 모든 경우 doorTarget.OpenDoor()를 호출하여 문 상태를 토글합니다.
-
-        // 문 상호작용
-        doorTarget.OpenDoor();
-        Debug.Log($"[GameManager] Door Toggle: {doorTarget.name} - Current State: {(doorTarget.open ? "Open" : "Closed")}.");
-    }
-
-    /// <summary>
-    /// 문 열림 시 현재 인덱스에 맞는 쪽지 UI와 물리 오브젝트를 활성화합니다.
-    /// </summary>
-    private bool ShowLetterAndObject()
-    {
-        bool success = true;
-
-        // 1. 물리 오브젝트 활성화
-        if (currentEventIndex >= 0 && currentEventIndex < eventObjects.Length && eventObjects[currentEventIndex] != null)
-        {
-            eventObjects[currentEventIndex].SetActive(true);
-        }
-
-        // 2. 다이얼로그 UI 활성화
-        if (currentEventIndex >= 0 && currentEventIndex < letterObjects.Length && letterObjects[currentEventIndex] != null)
-        {
-            letterObjects[currentEventIndex].SetActive(true);
-            isLetterUIDisplayed = true;
-        }
-        else
-        {
-            Debug.LogError($"[GameManager] Letter UI 활성화 실패! 인덱스: {currentEventIndex}. LetterObjects[{(currentEventIndex < letterObjects.Length ? currentEventIndex : "N/A")}] 참조가 NULL이거나 배열 범위 오류.");
-            isLetterUIDisplayed = false;
-            success = false;
-        }
-
-        return success;
     }
 
     /// <summary>
@@ -289,14 +274,10 @@ public class GameManager : MonoBehaviour
 
         // 3. 다음 이벤트 인덱스 증가
         currentEventIndex++;
-        if (currentEventIndex >= eventObjects.Length) currentEventIndex = 0;
+        HandleGameEndCheck(); // 인덱스 증가 후 게임 종료 체크
 
         Debug.Log($"[GameManager] 문 잠금 해제 완료. 다음 이벤트 인덱스: {currentEventIndex}.");
     }
-
-    // -------------------------------------------------------------------------
-    // 🚨 기타 유틸리티 및 타이머 로직
-    // -------------------------------------------------------------------------
 
     /// <summary>
     /// 랜덤 이벤트가 발생했을 때 호출되는 핵심 함수.
@@ -381,7 +362,6 @@ public class GameManager : MonoBehaviour
             }
         }
         // 쪽지 이벤트인 경우, 오브젝트 활성화는 OnDoorOpened에서 수행됩니다.
-
         isTimerRunning = false;
         yield return null;
     }
